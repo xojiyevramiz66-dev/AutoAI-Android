@@ -42,14 +42,18 @@ class LlmClient {
             .post(body)
             .build()
 
-        client.newCall(request).execute().use { response ->
-            val text = response.body?.string().orEmpty()
-            if (!response.isSuccessful) error("LLM HTTP ${response.code}: $text")
-            val json = JSONObject(text)
-            return json.getJSONArray("choices")
+                return client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string() ?: "Empty response"
+            if (!response.isSuccessful) {
+                throw RuntimeException("Error ${response.code}: $responseBody")
+            }
+            val json = JSONObject(responseBody)
+            json.getJSONArray("choices")
                 .getJSONObject(0)
                 .getJSONObject("message")
                 .getString("content")
+        }
+
         }
     }
 }
