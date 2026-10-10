@@ -1,92 +1,201 @@
-package com.example.autoai
+package com.example.autoai // Укажите ваше имя пакета, если отличается
 
+import android.content.ContentValues
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Button
+import android.widget.EditText
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.OutputStream
+import java.util.zip.ZipInputStream
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent { AutoAIApp() }
-    }
-}
+class MainActivity : AppCompatActivity() {
 
-class AgentViewModel : ViewModel() {
-    private val agent = Agent()
-    var input by mutableStateOf("")
-    var running by mutableStateOf(false)
-    val messages = mutableStateListOf<Pair<String, String>>()
+    private lateinit var etInput: EditText
+    private lateinit var btnSend: Button
+    private lateinit var btnAttachFile: Button
+    private lateinit var btnAttachPhoto: Button // Кнопка для фото
+    private lateinit var btnSaveMq4: Button
 
-    fun runGoal() {
-        val goal = input.trim()
-        if (goal.isEmpty() || running) return
-        input = ""
-        messages += "Ты" to goal
-        running = true
-        viewModelScope.launch {
-            try {
-                val result = agent.run(goal)
-                messages += "AutoAI" to result
-            } catch (e: Exception) {
-                val errorDetails = "(${e.javaClass.simpleName}) ${e.message ?: "нет описания"}"
-                messages += "Ошибка" to errorDetails
-            } finally { 
-                running = false 
+    private var lastAgentResponseText: String = ""
+
+    // Лаунчер для выбора файлов и ZIP-архивов
+    private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { selectedUri ->
+            val path = selectedUri.toString().lowercase()
+
+            if (path.endsWith(".zip")) {
+                Toast.makeText(this, "Распаковываю и анализирую ZIP-архив...", Toast.LENGTH_SHORT).show()
+                val zipAnalysis = unzipAndAnalyze(this, selectedUri)
+                val prompt = "Я загрузил ZIP-архив с проектом. Вот его структура и содержимое:\n\n$zipAnalysis\n\nПроанализируй этот проект, перечисли ключевые компоненты и объясни, как они работают."
+                sendQueryToAgent(prompt)
+            } else {
+                val fileContent = readTextFromUri(selectedUri)
+                if (!fileContent.isNullOrBlank()) {
+                    val prompt = "Проанализируй этот файл (код MQL4/текст) и объясни, что он делает:\n\n$fileContent"
+                    sendQueryToAgent(prompt)
+                    Toast.makeText(this, "Файл загружен, отправляю агенту...", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
-}
 
-@Composable
-fun AutoAIApp() {
-    val vm = remember { AgentViewModel() }
-    MaterialTheme {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("AutoAI", style = MaterialTheme.typography.headlineMedium)
-            Text("Автономный агент • MVP")
+    // Лаунчер для выбора фотографий из галереи
+    private val photoPickerLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        uri?.let { selectedUri ->
+            // Здесь мы получили Uri выбранной фотографии (например, скриншот графика)
+            Toast.makeText(this, "Фото выбрано!", Toast.LENGTH_SHORT).show()
+            
+            // Если ваша модель в LlmClient поддерживает мультимодальность (картинки), 
+            // можно передать Uri или отправить текстовый запрос о том, что прикреплено фото
+            val prompt = "Я прикрепил фотографию/скриншот (Uri: $selectedUri). Посмотри на нее и подскажи по ее содержимому."
+            sendQueryToAgent(prompt)
+        } ?: run {
+            Toast.makeText(this, "Фото не было выбрано", Toast.LENGTH_SHORT).show()
+        }
+    }
 
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(vm.messages) { (who, text) ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(who, style = MaterialTheme.typography.labelLarge)
-                            Text(text)
-                        }
-                    }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        // Инициализация элементов интерфейса
+        etInput = findViewById(R.id.etInput)
+        btnSend = findViewById(R.id.btnSend)
+        btnAttachFile = findViewById(R.id.btnAttachFile)
+        btnAttachPhoto = findViewById(R.id.btnAttachPhoto) // Инициализация кнопки фото
+        btnSaveMq4 = findViewById(R.id.btnSaveMq4)
+
+        // Обработка кнопки отправки текста
+        btnSend.setOnClickListener {
+            val userText = etInput.text.toString().trim()
+            if (userText.isNotEmpty()) {
+                sendQueryToAgent(userText)
+                etInput.setText("")
+            }
+        }
+
+        // Кнопка выбора файлов и ZIP
+        btnAttachFile.setOnClickListener {
+            filePickerLauncher.launch("*/*")
+        }
+
+        // Кнопка выбора фотографии из галереи
+        btnAttachPhoto.setOnClickListener {
+            photoPickerLauncher.launch(
+                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+            )
+        }
+
+        // Кнопка сохранения последнего кода в .mq4
+        btnSaveMq4.setOnClickListener {
+            if (lastAgentResponseText.isNotBlank()) {
+                saveMq4File(this, lastAgentResponseText, "AutoAdvisor.mq4")
+            } else {
+                Toast.makeText(this, "Нет полученного кода для сохранения", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Отправка запроса в LlmClient
+    private fun sendQueryToAgent(queryText: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val response = LlmClient.sendPrompt(queryText) 
+                lastAgentResponseText = response
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Ответ получен!", Toast.LENGTH_SHORT).show()
+                    // Здесь выводите 'response' в ваш чат/экран
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
+        }
+    }
 
-            OutlinedTextField(
-                value = vm.input,
-                onValueChange = { vm.input = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Цель для агента") },
-                enabled = !vm.running
-            )
-
-            Button(
-                onClick = vm::runGoal,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !vm.running && vm.input.isNotBlank()
-            ) {
-                Text(if (vm.running) "Работаю..." else "Запустить агента")
+    // Чтение обычного файла
+    private fun readTextFromUri(uri: Uri): String? {
+        return try {
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                    val stringBuilder = StringBuilder()
+                    var line: String? = reader.readLine()
+                    while (line != null) {
+                        stringBuilder.append(line).append("\n")
+                        line = reader.readLine()
+                    }
+                    stringBuilder.toString()
+                }
             }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка чтения: ${e.message}", Toast.LENGTH_SHORT).show()
+            null
+        }
+    }
+
+    // Распаковка ZIP-архива
+    private fun unzipAndAnalyze(context: Context, zipUri: Uri): String {
+        val stringBuilder = StringBuilder()
+        try {
+            context.contentResolver.openInputStream(zipUri)?.let { inputStream ->
+                val zipInputStream = ZipInputStream(inputStream)
+                var zipEntry = zipInputStream.nextEntry
+
+                while (zipEntry != null) {
+                    val fileName = zipEntry.name
+                    stringBuilder.append("📁 Файл: $fileName\n")
+
+                    if (fileName.endsWith(".mq4", true) || fileName.endsWith(".txt", true)) {
+                        val contentBytes = zipInputStream.readBytes()
+                        val textContent = String(contentBytes, Charsets.UTF_8)
+                        stringBuilder.append("Код:\n${textContent.take(300)}...\n\n")
+                    }
+
+                    zipInputStream.closeEntry()
+                    zipEntry = zipInputStream.nextEntry
+                }
+                zipInputStream.close()
+            }
+        } catch (e: Exception) {
+            return "Ошибка распаковки: ${e.message}"
+        }
+        return stringBuilder.toString()
+    }
+
+    // Сохранение файла .mq4 в Загрузки
+    private fun saveMq4File(context: Context, codeText: String, fileName: String) {
+        try {
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+
+            val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+            if (uri != null) {
+                val outputStream: OutputStream? = resolver.openOutputStream(uri)
+                outputStream?.use { it.write(codeText.toByteArray()) }
+                Toast.makeText(context, "Файл сохранен в Загрузки!", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(context, "Не удалось создать файл", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Ошибка сохранения: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 }
