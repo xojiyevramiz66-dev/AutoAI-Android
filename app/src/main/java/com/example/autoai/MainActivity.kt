@@ -35,8 +35,8 @@ class MainActivity : AppCompatActivity() {
             val path = uri.toString().lowercase()
 
             if (path.endsWith(".zip")) {
-                Toast.makeText(this, "Распаковываю и анализирую ZIP-архив...", Toast.LENGTH_SHORT).show()
-                val zipAnalysis = unzipAndAnalyze(this, uri)
+                Toast.makeText(this@MainActivity, "Распаковываю ZIP-архив...", Toast.LENGTH_SHORT).show()
+                val zipAnalysis = unzipAndAnalyze(this@MainActivity, uri)
                 val prompt = "Я загрузил ZIP-архив с проектом. Вот его структура:\n\n$zipAnalysis"
                 sendQueryToAgent(prompt)
             } else {
@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity() {
                 if (!fileContent.isNullOrBlank()) {
                     val prompt = "Проанализируй этот файл:\n\n$fileContent"
                     sendQueryToAgent(prompt)
-                    Toast.makeText(this, "Файл загружен, отправляю агенту...", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Файл загружен, отправляю агенту...", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -52,11 +52,11 @@ class MainActivity : AppCompatActivity() {
 
     private val photoPickerLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) {
-            Toast.makeText(this, "Фото выбрано!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@MainActivity, "Фото выбрано!", Toast.LENGTH_SHORT).show()
             val prompt = "Я прикрепил фотографию/скриншот. Посмотри на нее и подскажи."
             sendQueryToAgent(prompt)
         } else {
-            Toast.makeText(this, "Фото не было выбрано", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@MainActivity, "Фото не было выбрано", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -90,9 +90,9 @@ class MainActivity : AppCompatActivity() {
 
         btnSaveMq4.setOnClickListener {
             if (lastAgentResponseText.isNotBlank()) {
-                saveMq4File(this, lastAgentResponseText, "AutoAdvisor.mq4")
+                saveMq4File(this@MainActivity, lastAgentResponseText, "AutoAdvisor.mq4")
             } else {
-                Toast.makeText(this, "Нет кода для сохранения", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Нет кода для сохранения", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -100,7 +100,6 @@ class MainActivity : AppCompatActivity() {
     private fun sendQueryToAgent(queryText: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Если у вас другой класс или метод для связи с ИИ, замените эту строчку под ваш LlmClient
                 val response = "Ответ агента на запрос: $queryText"
                 lastAgentResponseText = response
 
