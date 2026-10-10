@@ -1,4 +1,4 @@
-Name: Build AutoAI APK
+name: Build AutoAI APK
 
 on:
   push:
