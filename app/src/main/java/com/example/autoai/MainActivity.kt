@@ -1,4 +1,4 @@
-package com.example.autoai // Укажите ваше имя пакета, если отличается
+package com.example.autoai
 
 import android.content.ContentValues
 import android.content.Context
@@ -25,12 +25,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etInput: EditText
     private lateinit var btnSend: Button
     private lateinit var btnAttachFile: Button
-    private lateinit var btnAttachPhoto: Button // Кнопка для фото
+    private lateinit var btnAttachPhoto: Button
     private lateinit var btnSaveMq4: Button
 
     private var lastAgentResponseText: String = ""
 
-    // Лаунчер для выбора файлов и ZIP-архивов
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { selectedUri ->
             val path = selectedUri.toString().lowercase()
@@ -51,16 +50,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Лаунчер для выбора фотографий из галереи
     private val photoPickerLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         uri?.let { selectedUri ->
-            // Здесь мы получили Uri выбранной фотографии (например, скриншот графика)
-            Toast.makeText(this, "Фото выбрано!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Фото выбрано, обрабатываю...", Toast.LENGTH_SHORT).show()
             
-            // Если ваша модель в LlmClient поддерживает мультимодальность (картинки), 
-            // можно передать Uri или отправить текстовый запрос о том, что прикреплено фото
-            val prompt = "Я прикрепил фотографию/скриншот (Uri: $selectedUri). Посмотри на нее и подскажи по ее содержимому."
-            sendQueryToAgent(prompt)
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    val imageBytes = contentResolver.openInputStream(selectedUri)?.use { it.readBytes() }
+                    
+                    if (imageBytes != null) {
+                        val prompt = "Я прикрепил скриншот/график. Проанализируй его."
+                        val response = LlmClient.sendPrompt(prompt) 
+                        lastAgentResponseText = response
+
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(this@MainActivity, "Ответ по фото получен!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(this@MainActivity, "Ошибка чтения фото: ${e.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
         } ?: run {
             Toast.makeText(this, "Фото не было выбрано", Toast.LENGTH_SHORT).show()
         }
@@ -70,14 +82,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Инициализация элементов интерфейса
         etInput = findViewById(R.id.etInput)
         btnSend = findViewById(R.id.btnSend)
         btnAttachFile = findViewById(R.id.btnAttachFile)
-        btnAttachPhoto = findViewById(R.id.btnAttachPhoto) // Инициализация кнопки фото
+        btnAttachPhoto = findViewById(R.id.btnAttachPhoto)
         btnSaveMq4 = findViewById(R.id.btnSaveMq4)
 
-        // Обработка кнопки отправки текста
         btnSend.setOnClickListener {
             val userText = etInput.text.toString().trim()
             if (userText.isNotEmpty()) {
@@ -86,19 +96,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Кнопка выбора файлов и ZIP
         btnAttachFile.setOnClickListener {
             filePickerLauncher.launch("*/*")
         }
 
-        // Кнопка выбора фотографии из галереи
         btnAttachPhoto.setOnClickListener {
             photoPickerLauncher.launch(
-                androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
+                ActivityResultContracts.PickVisualMedia.ImageOnly
             )
         }
 
-        // Кнопка сохранения последнего кода в .mq4
         btnSaveMq4.setOnClickListener {
             if (lastAgentResponseText.isNotBlank()) {
                 saveMq4File(this, lastAgentResponseText, "AutoAdvisor.mq4")
@@ -108,7 +115,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Отправка запроса в LlmClient
     private fun sendQueryToAgent(queryText: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
@@ -117,7 +123,6 @@ class MainActivity : AppCompatActivity() {
 
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "Ответ получен!", Toast.LENGTH_SHORT).show()
-                    // Здесь выводите 'response' в ваш чат/экран
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -127,7 +132,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Чтение обычного файла
     private fun readTextFromUri(uri: Uri): String? {
         return try {
             contentResolver.openInputStream(uri)?.use { inputStream ->
@@ -147,7 +151,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Распаковка ZIP-архива
     private fun unzipAndAnalyze(context: Context, zipUri: Uri): String {
         val stringBuilder = StringBuilder()
         try {
@@ -176,7 +179,6 @@ class MainActivity : AppCompatActivity() {
         return stringBuilder.toString()
     }
 
-    // Сохранение файла .mq4 в Загрузки
     private fun saveMq4File(context: Context, codeText: String, fileName: String) {
         try {
             val resolver = context.contentResolver
