@@ -12,7 +12,7 @@ import org.json.JSONObject
 class LlmClient {
     private val endpoint = "https://api.groq.com/openai/v1/chat/completions"
     private val apiKey = "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" // Укажите ваш ключ
-    private val model = "llama-3.3-70b-versatile"
+    private val model = "openai/gpt-oss-120b"
 
     private val client = OkHttpClient()
 
