@@ -9,7 +9,7 @@ import org.json.JSONObject
 
 class LlmClient {
     // Настрой в коде или вынеси в безопасное хранилище перед релизом.
-    private val endpoint = "[https://api.groq.com/openai/v1/chat/completions](https://api.groq.com/openai/v1/chat/completions)"
+    private val endpoint = "[https://api.groq.com/openai/v1/chat/completions])"
     private val apiKey = "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"
     private val model = "abu"
 
