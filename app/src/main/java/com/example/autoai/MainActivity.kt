@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -33,18 +34,16 @@ class MainActivity : AppCompatActivity() {
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             val path = uri.toString().lowercase()
-
             if (path.endsWith(".zip")) {
-                Toast.makeText(this@MainActivity, "Распаковываю ZIP-архив...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Распаковка ZIP...", Toast.LENGTH_SHORT).show()
                 val zipAnalysis = unzipAndAnalyze(this@MainActivity, uri)
-                val prompt = "Я загрузил ZIP-архив с проектом. Вот его структура:\n\n$zipAnalysis"
+                val prompt = "Я загрузил ZIP-архив MQL4. Проанализируй код: $zipAnalysis"
                 sendQueryToAgent(prompt)
             } else {
                 val fileContent = readTextFromUri(uri)
-                if (!fileContent.isNullOrBlank()) {
-                    val prompt = "Проанализируй этот файл:\n\n$fileContent"
+                if (!fileContent.isNullOrEmpty()) {
+                    val prompt = "Проанализируй этот исходный код MQL4: $fileContent"
                     sendQueryToAgent(prompt)
-                    Toast.makeText(this@MainActivity, "Файл загружен, отправляю агенту...", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -52,11 +51,11 @@ class MainActivity : AppCompatActivity() {
 
     private val photoPickerLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) {
-            Toast.makeText(this@MainActivity, "Фото выбрано!", Toast.LENGTH_SHORT).show()
-            val prompt = "Я прикрепил фотографию/скриншот. Посмотри на нее и подскажи."
+            Toast.makeText(this@MainActivity, "Фото выбрано", Toast.LENGTH_SHORT).show()
+            val prompt = "Я прикрепил фото интерфейса/графика. Проанализируй его."
             sendQueryToAgent(prompt)
         } else {
-            Toast.makeText(this@MainActivity, "Фото не было выбрано", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@MainActivity, "Фото не выбрано", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -71,7 +70,7 @@ class MainActivity : AppCompatActivity() {
         btnSaveMq4 = findViewById(R.id.btnSaveMq4)
 
         btnSend.setOnClickListener {
-            val userText = etInput.text.toString().trim()
+            val userText = etInput.text.toString()
             if (userText.isNotEmpty()) {
                 sendQueryToAgent(userText)
                 etInput.setText("")
@@ -83,32 +82,29 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnAttachPhoto.setOnClickListener {
-            photoPickerLauncher.launch(
-                ActivityResultContracts.PickVisualMedia.ImageOnly
-            )
+            photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
 
         btnSaveMq4.setOnClickListener {
-            if (lastAgentResponseText.isNotBlank()) {
-                saveMq4File(this@MainActivity, lastAgentResponseText, "AutoAdvisor.mq4")
+            if (lastAgentResponseText.isNotEmpty()) {
+                saveMq4File(this@MainActivity, lastAgentResponseText)
             } else {
                 Toast.makeText(this@MainActivity, "Нет кода для сохранения", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun sendQueryToAgent(queryText: String) {
+    private fun sendQueryToAgent(query: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val response = "Ответ агента на запрос: $queryText"
-                lastAgentResponseText = response
-
+                val response = LlmClient.sendMessage(query)
+                lastAgentResponseText = response ?: "Пустой ответ"
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Ответ получен!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Ответ получен", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(this@MainActivity, "Ошибка: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@MainActivity, "Ошибка: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -131,17 +127,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun unzipAndAnalyze(context: Context, zipUri: Uri): String {
+    private fun unzipAndAnalyze(context: Context, uri: Uri): String {
         val stringBuilder = StringBuilder()
         try {
-            val inputStream = context.contentResolver.openInputStream(zipUri)
+            val inputStream = context.contentResolver.openInputStream(uri)
             if (inputStream != null) {
                 val zipInputStream = ZipInputStream(inputStream)
                 var zipEntry = zipInputStream.nextEntry
-
                 while (zipEntry != null) {
                     val fileName = zipEntry.name
-                    stringBuilder.append("📁 Файл: $fileName\n")
+                    stringBuilder.append("Файл: $fileName\n")
                     zipInputStream.closeEntry()
                     zipEntry = zipInputStream.nextEntry
                 }
@@ -153,28 +148,27 @@ class MainActivity : AppCompatActivity() {
         return stringBuilder.toString()
     }
 
-    private fun saveMq4File(context: Context, codeText: String, fileName: String) {
+    private fun saveMq4File(context: Context, content: String) {
         try {
             val resolver = context.contentResolver
             val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "AgentExpert.mq4")
                 put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
                 put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
             }
-
             val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
             if (uri != null) {
                 val outputStream: OutputStream? = resolver.openOutputStream(uri)
                 if (outputStream != null) {
-                    outputStream.write(codeText.toByteArray())
+                    outputStream.write(content.toByteArray())
                     outputStream.close()
                 }
-                Toast.makeText(context, "Файл сохранен в Загрузки!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "Файл сохранен в Загрузки", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(context, "Не удалось создать файл", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Не удалось создать файл", Toast.LENGTH_LONG).show()
             }
         } catch (e: Exception) {
-            Toast.makeText(context, "Ошибка сохранения", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Ошибка сохранения: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
         }
     }
 }
