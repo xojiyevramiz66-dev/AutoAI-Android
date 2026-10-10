@@ -12,7 +12,8 @@ class LlmClient {
     private val endpoint = "https://api.groq.com/openai/v1/chat/completions"
 
     private val apiKey = "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"
-    private val model = "abu"
+    private val model = "llama-3.3-70b-versatile"
+
 
     private val client = OkHttpClient()
 
