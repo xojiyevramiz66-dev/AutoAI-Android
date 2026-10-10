@@ -52,7 +52,7 @@ class LlmClient {
                 .getJSONObject(0)
                 .getJSONObject("message")
                 .getString("content")
-        }
+        
 
         }
     }
