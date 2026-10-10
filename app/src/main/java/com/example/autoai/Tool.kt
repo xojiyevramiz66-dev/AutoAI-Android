@@ -27,7 +27,7 @@ class ToolRegistry {
 
     private fun calculator(expression: String): String {
         // MVP: безопасный калькулятор только для цифр и базовых операторов.
-        if (!expression.matches(Regex("[0-9+\-*/(). %]+"))) {
+        if (!expression.matches(Regex("""[0-9+\-*/(). %]+"""))) {
             return "Недопустимое выражение"
         }
         return try {
