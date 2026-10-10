@@ -38,8 +38,11 @@ class AgentViewModel : ViewModel() {
                 val result = agent.run(goal)
                 messages += "AutoAI" to result
             } catch (e: Exception) {
-                messages += "Ошибка" to (e.message ?: "unknown error")
-            } finally { running = false }
+                val detail = e.localizedMessage ?: e.message ?: "unknown error"
+                messages += "Ошибка" to detail
+            } finally {
+                running = false
+            }
         }
     }
 }
@@ -49,19 +52,21 @@ fun AutoAIApp() {
     val vm = remember { AgentViewModel() }
     MaterialTheme {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("AutoAI", style = MaterialTheme.typography.headlineMedium)
-            Text("Автономный агент • MVP")
+            Text("Автономный агент • MVP", style = MaterialTheme.typography.bodySmall)
 
             LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(vm.messages) { (who, text) ->
-                    Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(12.dp)) {
                             Text(who, style = MaterialTheme.typography.labelLarge)
                             Text(text)
                         }
@@ -82,7 +87,7 @@ fun AutoAIApp() {
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !vm.running && vm.input.isNotBlank()
             ) {
-                Text(if (vm.running) "Работаю..." else "Запустить агента")
+                Text(if (vm.running) "Работает..." else "Запустить агента")
             }
         }
     }
