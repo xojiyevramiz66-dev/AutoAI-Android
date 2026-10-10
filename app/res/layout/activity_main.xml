@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="bottom">
+
+    <!-- Область вывода ответов / логов агента (сверху) -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:id="@+id/tvAgentOutput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Для проверки подписи...\n\n**Дополнительные рекомендации:**\n- Перед публикацией в Google Play убедитесь, что включили ProGuard/R8...\n\nЕсли возникнут конкретные вопросы по коду, дайте знать — помогу подробнее."
+            android:textSize="14sp"
+            android:textColor="@android:color/black" />
+    </ScrollView>
+
+    <!-- Поле ввода: Цель для агента -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="8dp">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Цель для агента" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Кнопка запуска агента -->
+    <Button
+        android:id="@+id/btnSend"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Запустить агента"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Панель инструментов: Загрузка ZIP, Фото и Скачать (.mq4) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/btnAttachFile"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📦 ZIP"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnAttachPhoto"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🖼️ Фото"
+            android:textSize="12sp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp" />
+
+        <Button
+            android:id="@+id/btnSaveMq4"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="💾 Скачать"
+            android:textSize="12sp" />
+
+    </LinearLayout>
+
+</LinearLayout>
