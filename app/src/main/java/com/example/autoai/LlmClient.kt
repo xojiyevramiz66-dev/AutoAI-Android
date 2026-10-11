@@ -9,37 +9,52 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 object LlmClient {
-    // Настраиваем клиент с таймаутами для стабильной работы
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
     private const val API_URL = "https://api.groq.com/openai/v1/chat/completions"
-    
-    // Ваш API ключ Groq[span_2](start_span)[span_2](end_span)
     private const val API_KEY = "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"
 
+    // История сообщений: хранит системный промпт и диалог
+    private val conversationHistory = JSONArray().apply {
+        put(JSONObject()
+            .put("role", "system")
+            .put("content", "Ты полезный и вежливый AI-ассистент для разработчика. Всегда отвечай строго на русском языке."))
+    }
+
     fun sendMessage(prompt: String): String? {
-        val json = JSONObject().apply {
-            // Исправлено: заменена проблемная модель на быструю и стабильную llama-3.1-8b-instant, 
-            // у которой нормальные лимиты и не возникает ошибка 413.
-            put("model", "openai/gpt-oss-120b")
+        // Добавляем новое сообщение пользователя
+        conversationHistory.put(JSONObject().put("role", "user").put("content", prompt))
+
+        // Ограничиваем размер истории (оставляем системный промпт [индекс 0] + последние 10 сообщений),
+        // чтобы избежать ошибки 413 (Request too large)
+        if (conversationHistory.length() > 11) {
+            val systemMessage = conversationHistory.getJSONObject(0)
+            val recentMessages = JSONArray()
+            recentMessages.put(systemMessage)
             
-            // Формируем список сообщений с системным промптом
-            val messages = JSONArray().apply {
-                // Системная инструкция фиксирует поведение бота и язык
-                put(JSONObject()
-                    .put("role", "system")
-                    .put("content", "Ты полезный и вежливый AI-ассистент для разработчика. Всегда отвечай строго на русском языке, кратко, понятно и по делу."))
-                
-                // Запрос пользователя
-                put(JSONObject()
-                    .put("role", "user")
-                    .put("content", prompt))
+            // Берем последние 10 элементов из старого массива
+            val startIdx = conversationHistory.length() - 10
+            for (i in startIdx until conversationHistory.length()) {
+                recentMessages.put(conversationHistory.getJSONObject(i))
             }
             
-            put("messages", messages)
+            // Перезаписываем историю
+            conversationHistory.let {
+                for (i in it.length() - 1 downTo 0) {
+                    it.remove(i)
+                }
+                for (i in 0 until recentMessages.length()) {
+                    it.put(recentMessages.getJSONObject(i))
+                }
+            }
+        }
+
+        val json = JSONObject().apply {
+            put("model", "openai/gpt-oss-120b")
+            put("messages", conversationHistory)
             put("temperature", 0.7)
         }
 
@@ -60,8 +75,13 @@ object LlmClient {
                 
                 val jsonResponse = JSONObject(responseBody)
                 val choices = jsonResponse.getJSONArray("choices")
-                val message = choices.getJSONObject(0).getJSONObject("message")
-                message.getString("content")
+                val messageObj = choices.getJSONObject(0).getJSONObject("message")
+                val answerText = messageObj.getString("content")
+
+                // Сохраняем ответ ассистента в историю, чтобы бот помнил контекст
+                conversationHistory.put(JSONObject().put("role", "assistant").put("content", answerText))
+
+                answerText
             }
         } catch (e: Exception) {
             "Ошибка запроса к Groq: ${e.localizedMessage}"
