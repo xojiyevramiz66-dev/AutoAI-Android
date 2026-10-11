@@ -69,8 +69,6 @@ class MainActivity : AppCompatActivity() {
         btnAttachFile = findViewById(R.id.btnAttachFile)
         btnAttachPhoto = findViewById(R.id.btnAttachPhoto)
         btnSaveMq4 = findViewById(R.id.btnSaveMq4)
-        
-        // Привязываем TextView с правильным ID из вашей разметки (tvAgentOutput)
         tvAgentOutput = findViewById(R.id.tvAgentOutput)
 
         btnSend.setOnClickListener {
@@ -101,16 +99,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendQueryToAgent(query: String) {
-        Toast.makeText(this, "Запрос отправлен...", Toast.LENGTH_SHORT).show()
+        // Убрали всплывающее окно «Запрос отправлен...»
 
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                // Вызов агента / LLM клиента
                 val response = Agent.decide(query) ?: "Пустой ответ"
                 lastAgentResponseText = response
 
                 withContext(Dispatchers.Main) {
-                    // Выводим ответ модели в tvAgentOutput без стирания пользовательского ввода
                     tvAgentOutput.text = response
                     Toast.makeText(this@MainActivity, "Ответ получен", Toast.LENGTH_SHORT).show()
                 }
