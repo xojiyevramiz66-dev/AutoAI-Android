@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnAttachFile: Button
     private lateinit var btnAttachPhoto: Button
     private lateinit var btnSaveMq4: Button
-    private lateinit var tvResponse: TextView
+    private lateinit var tvAgentOutput: TextView
 
     private var lastAgentResponseText: String = ""
 
@@ -70,8 +70,8 @@ class MainActivity : AppCompatActivity() {
         btnAttachPhoto = findViewById(R.id.btnAttachPhoto)
         btnSaveMq4 = findViewById(R.id.btnSaveMq4)
         
-        // Инициализируем поле для вывода ответа
-        tvResponse = findViewById(R.id.tvResponse)
+        // Привязываем TextView с правильным ID из вашей разметки (tvAgentOutput)
+        tvAgentOutput = findViewById(R.id.tvAgentOutput)
 
         btnSend.setOnClickListener {
             val userText = etInput.text.toString().trim()
@@ -110,14 +110,14 @@ class MainActivity : AppCompatActivity() {
                 lastAgentResponseText = response
 
                 withContext(Dispatchers.Main) {
-                    // Выводим ответ модели в TextView без стирания пользовательского ввода
-                    tvResponse.text = response
+                    // Выводим ответ модели в tvAgentOutput без стирания пользовательского ввода
+                    tvAgentOutput.text = response
                     Toast.makeText(this@MainActivity, "Ответ получен", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     val errorMsg = "Ошибка запроса: ${e.localizedMessage}"
-                    tvResponse.text = errorMsg
+                    tvAgentOutput.text = errorMsg
                     Toast.makeText(this@MainActivity, errorMsg, Toast.LENGTH_SHORT).show()
                 }
             }
