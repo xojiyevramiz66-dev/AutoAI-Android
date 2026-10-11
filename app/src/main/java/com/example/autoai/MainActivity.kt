@@ -99,16 +99,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendQueryToAgent(query: String) {
-        // Убрали всплывающее окно «Запрос отправлен...»
-
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val response = Agent.decide(query) ?: "Пустой ответ"
                 lastAgentResponseText = response
 
                 withContext(Dispatchers.Main) {
-                    tvAgentOutput.text = response
-                    Toast.makeText(this@MainActivity, "Ответ получен", Toast.LENGTH_SHORT).show()
+                    // Накапливаем историю сообщений прямо на экране в TextView
+                    val currentText = tvAgentOutput.text.toString()
+                    val updatedChat = if (currentText.isEmpty()) {
+                        "Вы: $query\n\nБот: $response"
+                    } else {
+                        "$currentText\n\nВы: $query\n\nБот: $response"
+                    }
+                    tvAgentOutput.text = updatedChat
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
