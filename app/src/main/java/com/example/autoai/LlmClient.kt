@@ -6,21 +6,40 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 object LlmClient {
-    private val client = OkHttpClient()
+    // Настраиваем клиент с таймаутами для стабильной работы
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     private const val API_URL = "https://api.groq.com/openai/v1/chat/completions"
     
-    // Вставьте ваш реальный Groq API ключ
+    // Ваш API ключ Groq[span_2](start_span)[span_2](end_span)
     private const val API_KEY = "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"
 
     fun sendMessage(prompt: String): String? {
         val json = JSONObject().apply {
-            // Указываем нужную модель
-            put("model", "openai/gpt-oss-120b")
-            put("messages", JSONArray().put(
-                JSONObject().put("role", "user").put("content", prompt)
-            ))
+            // Исправлено: заменена проблемная модель на быструю и стабильную llama-3.1-8b-instant, 
+            // у которой нормальные лимиты и не возникает ошибка 413.
+            put("model", "llama-3.1-8b-instant")
+            
+            // Формируем список сообщений с системным промптом
+            val messages = JSONArray().apply {
+                // Системная инструкция фиксирует поведение бота и язык
+                put(JSONObject()
+                    .put("role", "system")
+                    .put("content", "Ты полезный и вежливый AI-ассистент для разработчика. Всегда отвечай строго на русском языке, кратко, понятно и по делу."))
+                
+                // Запрос пользователя
+                put(JSONObject()
+                    .put("role", "user")
+                    .put("content", prompt))
+            }
+            
+            put("messages", messages)
             put("temperature", 0.7)
         }
 
