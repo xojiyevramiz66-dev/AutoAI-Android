@@ -19,7 +19,6 @@ import kotlinx.coroutines.withContext
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStream
-import java.util.zip.ZipInputStream
 
 class MainActivity : AppCompatActivity() {
 
@@ -32,20 +31,13 @@ class MainActivity : AppCompatActivity() {
 
     private var lastAgentResponseText: String = ""
 
+    // Оставили только выбор обычных файлов (без ZIP)
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            val path = uri.toString().lowercase()
-            if (path.endsWith(".zip")) {
-                Toast.makeText(this, "ZIP файл выбран", Toast.LENGTH_SHORT).show()
-                val zipAnalysis = unzipAndAnalyze(uri)
-                val prompt = "Я загрузил ZIP-архив с проектом. Вот его содержимое: $zipAnalysis"
+            val fileContent = readTextFromUri(uri)
+            if (!fileContent.isNullOrEmpty()) {
+                val prompt = "Проанализируй этот файл:\n$fileContent"
                 sendQueryToAgent(prompt)
-            } else {
-                val fileContent = readTextFromUri(uri)
-                if (!fileContent.isNullOrEmpty()) {
-                    val prompt = "Проанализируй этот файл:\n$fileContent"
-                    sendQueryToAgent(prompt)
-                }
             }
         }
     }
@@ -105,7 +97,6 @@ class MainActivity : AppCompatActivity() {
                 lastAgentResponseText = response
 
                 withContext(Dispatchers.Main) {
-                    // Накапливаем историю сообщений прямо на экране в TextView
                     val currentText = tvAgentOutput.text.toString()
                     val updatedChat = if (currentText.isEmpty()) {
                         "Вы: $query\n\nБот: $response"
@@ -139,27 +130,6 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             null
         }
-    }
-
-    private fun unzipAndAnalyze(uri: Uri): String {
-        val stringBuilder = StringBuilder()
-        try {
-            val inputStream = contentResolver.openInputStream(uri)
-            if (inputStream != null) {
-                val zipInputStream = ZipInputStream(inputStream)
-                var zipEntry = zipInputStream.nextEntry
-                while (zipEntry != null) {
-                    val fileName = zipEntry.name
-                    stringBuilder.append("Файл: $fileName\n")
-                    zipInputStream.closeEntry()
-                    zipEntry = zipInputStream.nextEntry
-                }
-                zipInputStream.close()
-            }
-        } catch (e: Exception) {
-            return "Ошибка распаковки архива"
-        }
-        return stringBuilder.toString()
     }
 
     private fun saveMq4File(context: Context, content: String) {
