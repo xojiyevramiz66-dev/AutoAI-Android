@@ -24,7 +24,7 @@ object LlmClient {
         val json = JSONObject().apply {
             // Исправлено: заменена проблемная модель на быструю и стабильную llama-3.1-8b-instant, 
             // у которой нормальные лимиты и не возникает ошибка 413.
-            put("model", "llama-3.1-8b-instant")
+            put("model", "openai/gpt-oss-120b")
             
             // Формируем список сообщений с системным промптом
             val messages = JSONArray().apply {
