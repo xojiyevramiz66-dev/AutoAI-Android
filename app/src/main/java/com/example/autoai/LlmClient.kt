@@ -1,48 +1,42 @@
 package com.example.autoai
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
 import org.json.JSONObject
 
-class LlmClient {
-    private val endpoint = "https://api.groq.com/openai/v1/chat/completions"
-    private val apiKey = "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" // Укажите ваш ключ
-    private val model = "openai/gpt-oss-120b"
-
+object LlmClient {
     private val client = OkHttpClient()
+    private const val API_URL = "https://api.openai.com/v1/chat/completions" // Или ваш прокси/эндпоинт
+    private const val API_KEY = "YOUR_API_KEY" // Замените на ваш ключ или настройте под себя
 
-    suspend fun decide(prompt: String): String = withContext(Dispatchers.IO) {
-        val messages = JSONArray()
-            .put(JSONObject().put("role", "system").put("content", "Отвечай только JSON."))
-            .put(JSONObject().put("role", "user").put("content", prompt))
+    fun sendMessage(prompt: String): String? {
+        val json = JSONObject().apply {
+            put("model", "gpt-4o-mini")
+            put("messages", org.json.JSONArray().put(
+                JSONObject().put("role", "user").put("content", prompt)
+            ))
+        }
 
-        val body = JSONObject()
-            .put("model", model)
-            .put("messages", messages)
-            .put("temperature", 0.1)
-            .toString()
-            .toRequestBody("application/json".toMediaType())
-
+        val body = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder()
-            .url(endpoint)
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
+            .url(API_URL)
+            .addHeader("Authorization", "Bearer $API_KEY")
             .post(body)
             .build()
 
-        client.newCall(request).execute().use { response ->
-            val text = response.body?.string().orEmpty()
-            if (!response.isSuccessful) error("LLM HTTP ${response.code}: $text")
-            val json = JSONObject(text)
-            json.getJSONArray("choices")
-                .getJSONObject(0)
-                .getJSONObject("message")
-                .getString("content")
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return "Ошибка сервера: ${response.code}"
+                val responseBody = response.body?.string() ?: return "Пустой ответ"
+                val jsonResponse = JSONObject(responseBody)
+                val choices = jsonResponse.getJSONArray("choices")
+                val message = choices.getJSONObject(0).getJSONObject("message")
+                message.getString("content")
+            }
+        } catch (e: Exception) {
+            "Ошибка запроса: ${e.localizedMessage}"
         }
     }
 }
