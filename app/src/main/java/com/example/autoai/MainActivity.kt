@@ -97,6 +97,7 @@ class MainActivity : AppCompatActivity() {
     private fun sendQueryToAgent(query: String) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                // Вызов метода LlmClient. Убедитесь, что в LlmClient.kt метод называется sendMessage
                 val response = LlmClient.sendMessage(query)
                 lastAgentResponseText = response ?: "Пустой ответ"
                 withContext(Dispatchers.Main) {
